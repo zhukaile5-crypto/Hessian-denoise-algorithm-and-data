@@ -1,0 +1,54 @@
+clear;
+clc;
+
+% 读取图像（如果是彩色则转换为灰度）
+img = imread('C:\Users\HUAWEI\Desktop\原始图像\彩色图像1.png');
+if size(img, 3) == 3
+    img = rgb2gray(img);
+end
+
+% 设置参数
+noise_fraction = 0.3;    % 添加 30% 像素的噪声
+sigma = 250;              % 噪声标准差
+
+% 获取图像信息
+[height, width] = size(img);
+total_pixels = height * width;
+
+% 选择随机像素
+num_noise_pixels = round(total_pixels * noise_fraction);
+random_indices = randperm(total_pixels, num_noise_pixels);
+
+% 生成带噪声的图像
+noisy_img = double(img); % 转换为双精度以便进行加法运算
+% 生成与所选像素数量匹配的高斯噪声
+gaussian_noise = sigma * randn(1, num_noise_pixels); 
+
+% 将随机像素添加噪声
+noisy_img(random_indices) = noisy_img(random_indices) + gaussian_noise;
+
+% 限制范围并转换为 uint8
+noisy_img = uint8(max(min(noisy_img, 255), 0));
+
+% 显示
+figure;
+imshow(noisy_img);
+title('部分高斯噪声图像');
+
+% --- 修改的保存部分 ---
+
+% 定义目标保存路径和文件名
+% 注意：请确保 'C:\Users\HUAWEI\Desktop\处理图像\' 这个文件夹已经存在
+save_folder = 'C:\Users\HUAWEI\Desktop\同一图像不同信噪比\';
+save_filename = '.png';
+full_path = fullfile(save_folder, save_filename); % 构造完整路径
+
+% 检查文件夹是否存在，如果不存在则创建
+if ~exist(save_folder, 'dir')
+    mkdir(save_folder);
+    fprintf('创建文件夹: %s\n', save_folder);
+end
+
+% 保存图像
+imwrite(noisy_img, full_path);
+fprintf('图像已成功保存到: %s\n', full_path);
