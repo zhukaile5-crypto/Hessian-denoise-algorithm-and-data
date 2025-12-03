@@ -1,0 +1,555 @@
+\documentclass[12pt,a4paper]{article}
+% 宏包定义
+\usepackage[colorlinks=true, urlcolor=blue]{hyperref}
+\usepackage{fontsize}
+\usepackage{caption} 
+\usepackage{subcaption} 
+% 中文支持
+\usepackage[UTF8]{ctex} % Overleaf 会自动使用 Fandol 字体替代，包含黑体
+% 页面布局
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+% 数学公式
+\usepackage{amsmath, amssymb, amsthm}
+% 图形
+\usepackage{graphicx}
+% 表格
+\usepackage{booktabs}
+% 算法
+\usepackage{algorithm, algorithmic}
+% 强制图片位置所需的宏包
+\usepackage{float}
+\usepackage{cases}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+% 参考文献管理
+\usepackage{natbib}
+
+% =============================================
+% **** 核心修改 1：强制脚注沉底 ****
+% =============================================
+% [bottom] 参数强制将脚注推到页面最底端，而不是紧跟在正文后面
+\usepackage[bottom]{footmisc} 
+% =============================================
+
+% =============================================
+% **** 核心修改 2：全局图名样式设置 ****
+% =============================================
+% 1. 定义 caption 宏包可识别的黑体字体命令
+\DeclareCaptionFont{heiti}{\heiti} 
+
+% 2. 全局设置图表标题样式
+% font={heiti,footnotesize}: 字体强制黑体，字号设为小号(比正文小两号)
+% labelsep=quad: 编号和标题之间空一个汉字宽
+\captionsetup{font={heiti,footnotesize}, labelsep=quad} 
+% =============================================
+
+
+% 设置代码样式
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+}
+
+% 设置超链接样式
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=red,
+    urlcolor=cyan,
+}
+
+% 定义新命令
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+% 标题信息
+\title{\textbf{基于二次正则凸优化的噪声滤过技术}}
+
+% =============================================
+% 作者信息 (与 \footnotetext 保持一致)
+% =============================================
+\author{
+    朱凯乐\footnotemark[1]\footnotemark[2], 
+    姜博文\footnotemark[1]\footnotemark[2], 
+    陈柳萱\footnotemark[1]\footnotemark[2], 
+    林瑜昕\footnotemark[1]\footnotemark[2]
+}
+\date{\today}
+
+\begin{document}
+
+% 封面
+\maketitle
+
+% =============================================
+% 脚注内容定义
+% 注意：\footnotetext 必须紧跟 \maketitle 之后
+% 引入 footmisc 宏包后，它们会自动沉底
+% =============================================
+\footnotetext[1]{这些作者对本文贡献相同} % 编号 [1]：同等贡献
+\footnotetext[2]{北京大学} % 编号 [2]：北京大学
+
+% ----------------------------------------------------
+% **** 摘要标题：居中、加粗、增大字号 ****
+% ----------------------------------------------------
+\vspace{-1em}
+\begin{center}
+    \textbf{\Large 摘要}
+\end{center}
+
+% ----------------------------------------------------
+% **** 摘要正文：使用 CTeX 预设的 \kaishu 楷体 ****
+% ----------------------------------------------------
+\kaishu % 使用 CTeX 预设的楷书命令
+本文提出一种基于二阶正则化的噪声滤除方法。该方法基于真实信号通常具有二阶平滑特性，而噪声由于其随机性会导致二阶导数在某些位置出现显著峰值的假设。通过引入保真项和二阶导数惩罚项构建二次规划问题，并采用分裂布雷格曼方法（一种正则化凸优化技术）进行求解，在保持信号真实性的同时有效滤除噪声。\cite{Huang2018HessianSIM} 实验结果表明，该噪声滤除技术能够在保持图像细节的前提下，显著降低噪声水平与强度，达到较好的噪声滤过效果。
+
+
+% 关键词
+\vspace{1em}
+
+
+% 恢复正常的段落格式 (在摘要和关键词之后，正文之前)
+\normalsize\normalfont
+\setlength{\parindent}{2em} % 恢复首行缩进
+\setlength{\parskip}{0ex}
+\textbf{关键词：} 二阶惩罚；噪声滤过；分裂布雷格曼方法
+
+% 正文开始
+\section{引言}
+
+\subsection{研究背景}
+
+在工程应用中，我们经常遇到具有二阶平滑特性的信号（如生物医学成像等领域的图像）。然而，这些信号往往会由于受到噪声干扰而具有较低的信噪比。为了提高信号质量，我们需要开发有效的噪声滤除技术提升信噪比，以适应工程应用需求。
+
+\subsection{研究目的}
+
+本文旨在说明一种系统性方法，其能够实现对二阶光滑分布的图像的信噪比的提高。我们会提出一个通用且有效的算法，来改善此类图像的质量。
+
+\subsection{相关方法及优缺点分析}
+
+除本文方法外，现有图像增强技术包括高斯卷积核滤波和全变分（TV）滤波等。然而，这些方法存在一定局限性：高斯模糊仅对噪声进行平均处理，并未完全消除噪声，且在低信噪比条件下易导致图像失真。而 TV 滤波基于一阶导数惩罚，重建图像仅能实现分段光滑，而在不同区域间会出现块状伪影。\cite{Huang2018HessianSIM}
+
+而本文介绍的方法（基于二阶导数惩罚）则能够在一定程度上实现对噪声的去除，并且由于其基于二阶惩罚，我们滤波的结果将是全局光滑的，重建图像不会呈现斑块状。\cite{Huang2018HessianSIM}
+
+\section{模型与算法}
+
+\subsection{滤波的数学模型与求解}
+
+\subsubsection{滤波的数学模型}
+
+我们基于前述的二阶光滑假设构造如下拟真项与惩罚项：\cite{Huang2018HessianSIM}
+
+拟真项\footnote{这里我们将含噪声的原始图像的灰度分布记为$g$，将我们想要的、待求的去噪图像的灰度分布记为$f$，并将f关于对应方向的二阶导数记为$f_{xx},f_{xy},f_{yy}$}：$$\frac{\mu}{2}\left\|g-f\right\|_{2}^{2}=\iint \frac{\mu}{2}(g-f)^2 dxdy$$
+
+二阶惩罚项：$$\iint \left\|\begin{matrix}f_{xx}&f_{xy}\\f_{yx}&f_{yy}\end{matrix}\right\|_1 dxdy=\iint (\left\|f_{xx}\right\|_1+2\left\|f_{xy}\right\|_1+\left\|f_{yy}\right\|_1) dxdy$$
+
+我们希望我们最终的重建图像能够与含噪图像较为接近，也即我们希望拟真项不应该太大。同时，根据二阶光滑性，我们希望即二阶惩罚项也不能太大。因此，目标函数可表述为以下优化问题：
+\begin{equation}
+\arg\min_{f} \left[ \frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint \left\|\begin{matrix}f_{xx}&f_{xy}\\f_{yx}&f_{yy}\end{matrix}\right\|_1 dxdy \right]
+\end{equation}
+
+求解这个二次规划问题需要大量的数学分析，我们下面来逐一分析：
+
+\subsubsection{引入拉格朗日未定乘子}
+
+二次规划问题：$$\arg\min_{f} \left[ \frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint (\left\|f_{xx}\right\|_1+2\left\|f_{xy}\right\|_1+\left\|f_{yy}\right\|_1) dxdy \right]$$存在强耦合，非常不利于求解。为解耦优化问题，我们引入辅助变量：
+
+\begin{equation}
+d_{xx} = f_{xx}\ ,\ d_{xy} = 2f_{xy}\ ,\ d_{yy} = f_{yy}
+\end{equation}
+
+从而上述函数等于 $ \frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint (\left\|d_{xx}\right\|_1+\left\|d_{xy}\right\|_1+\left\|d_{yy}\right\|_1) dxdy$。采取增广拉格朗日函数方法，引入未定乘子以实现彻底脱耦合，最终问题化为：
+\begin{align}
+\arg\min_{f,d}\bigg[&\frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint (\left\|d_{xx}\right\|_1+\left\|d_{xy}\right\|_1+\left\|d_{yy}\right\|_1) dxdy \nonumber \\
+&+\frac{\lambda}{2}(\left\|d_{xx}-f_{xx}\right\|_{2}^{2}+\left\|d_{xy}-2f_{xy}\right\|_{2}^{2}+\left\|d_{yy}-f_{yy}\right\|_{2}^{2})\bigg]
+\end{align}
+
+我们通过引入拉格朗日乘子，实现了对前述函数的解耦。但是，直接求解这个函数的极值条件仍然十分具有难度，故我们下面利用分裂布雷格曼迭代法(Split-Bregman迭代法)对极值条件进行求解：
+
+\subsubsection{分裂布雷格曼迭代法求解极值条件}
+
+引入迭代参量$b_{xx},b_{xy},b_{yy}$，则优化问题改写为为:
+\begin{align}
+\arg\min_{f,d}\bigg[&\frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint (\left\|d_{xx}\right\|_1+\left\|d_{xy}\right\|_1+\left\|d_{yy}\right\|_1) dxdy \nonumber \\
+&+\frac{\lambda}{2}(\left\|d_{xx}-f_{xx}-b_{xx}\right\|_{2}^{2}+\left\|d_{xy}-2f_{xy}-b_{xy}\right\|_{2}^{2}+\left\|d_{yy}-f_{yy}-b_{yy}\right\|_{2}^{2})\bigg]
+\end{align}
+
+\textbf{下面对这个方程进行迭代求解：}
+
+我们将
+$$\frac{\lambda}{2}(\left\|d_{xx}-f_{xx}-b_{xx}\right\|_{2}^{2}+ 
+\left\|d_{xy}-2f_{xy}-b_{xy}\right\|_{2}^{2}+ \left\|d_{yy}-f_{yy}-b_{yy}\right\|_{2}^{2})$$
+简记为$\frac{\lambda}{2}(\sum_i \left\|d_i-\nabla_i f - b_i \right\|_2^2)$，(其中$i\in\{xx,xy,yy\}$且$\nabla_{xx}=\partial_{xx}^2,\nabla_{xy}=2\partial_{xy}^2,\nabla_{yy}=\partial_{yy}^2$)，则前述问题可以改写为:
+\begin{align}
+&\arg\min_{f,d}\bigg[\frac{\mu}{2}\left\|g-f\right\|_{2}^{2}+\iint (\left\|d_{xx}\right\|_1+\left\|d_{xy}\right\|_1+\left\|d_{yy}\right\|_1) dxdy+  \nonumber \\
+&\frac{\lambda}{2}(\sum_i \left\|d_i-\nabla_i f - b_i \right\|_2^2)\bigg]
+\end{align}
+
+
+\textbf{先固定$b$,$d$求解f:}
+
+将$(5)$式中的函数对$f$求导，这是一个广泛函数，求导过程如下所示（我们采用泛函里面经典的变分法进行求解）:
+$$\delta(\frac{\mu}{2}\left\|g-f\right\|_2^2 )= \frac{\mu}{2}\iint(g-f-\delta f)^2dxdy-\frac{\mu}{2}\iint(g-f)^2dxdy =\mu \iint (f-g)\delta f dxdy$$
+
+根据泛函导数的定义：
+$$\partial_f \frac{\mu}{2}\left\|g-f\right\|_2^2 = \mu(f-g)$$
+
+同理考虑后面几项的导数：
+$$\delta(\frac{\lambda}{2}\left\|d_i-\nabla_i f_i-b_i\right\|_2^2) = - \lambda\iint (d_i-\nabla_i f_i-b_i)\nabla_{i}(\delta f) dxdy$$
+
+引入$\nabla_i$的伴随算子$\nabla_i^T$，则上式化为:
+$$\delta(\frac{\lambda}{2}\left\|d_i-\nabla_i f_i-b_i\right\|_2^2) = - \lambda\iint (\nabla_{i})^T(d_i-\nabla_i f_i-b_i)\delta f dxdy$$
+
+也即导数为:
+$$\partial_f(\frac{\lambda}{2}\left\|d_i-\nabla_i f_i-b_i\right\|_2^2) = - \lambda\nabla_{i}^T(d_i-\nabla_i f_i-b_i)$$
+
+进而我们可以进一步地写出完整的求导结果:
+$$(\mu+\sum_i\lambda \nabla_i^T\nabla_i)f=(\mu g +\lambda\sum_i \nabla_i^T(d_i-b_i))$$
+
+这个方程在空域内难以求解，我们将其转换到频域内进行求解，首先我们证明一个性质，即空域内的微分操作等价于频域内的乘法操作：
+$$\partial_x\iint f e^{ik_xx+ik_yy}dxdy = ik_x\cdot\iint f e^{ik_xx+ik_yy} dxdy$$
+
+进而，我们可以有（下面的FFT代表快速傅里叶变换）：
+
+$$(\mu+\sum_i \lambda \text{FFT}(\nabla_i^T\nabla_i))\text{FFT}(f) = (\mu \text{FFT}(g)+\lambda \sum_i \text{FFT}((\nabla_i^T(d_i-b_i))))$$
+
+也即：
+$$f = \text{FFT}^{-1}\left(\frac{\mu \text{FFT}(g)+\lambda \sum_i \text{FFT}(\nabla_i^T(d_i-b_i))}{\mu+\sum_i \lambda \text{FFT}(\nabla_i^T\nabla_i)}\right)$$
+
+上式容易推广为迭代形式：
+$$f^{(k+1)} = \text{FFT}^{-1}\left(\frac{\mu \text{FFT}(g)+\lambda \sum_i \text{FFT}(\nabla_i^T(d^{(k)}_i-b^{(k)}_i))}{\mu+\sum_i \lambda \text{FFT}(\nabla_i^T\nabla_i)}\right)$$
+
+\textbf{接下来我们固定$f$与$b$求解$d$，容易看出，各个$d_i$的优化问题是独立的，也即我们可以分别考虑：}
+$$\arg\min_{d_i}\left[\left\|d_i\right\|_1+\frac{\lambda}{2}\left\|d_i-\nabla_i f -b_i\right\|_2^2\right]$$
+
+对上式求导并令$\nabla_i f - b_i=u_i$，可以得到：
+$$\frac{\partial\left\|d_i\right\|_1}{\partial d_i}+\lambda(d_i-u_i) =0$$
+其中：
+\begin{numcases}{}
+\frac{\partial\left\|d_i\right\|_1}{\partial d_i} = 1 & $(if\ \ d_i>0)$\nonumber\\
+\frac{\partial\left\|d_i\right\|_1}{\partial d_i} \in [-1,1] & $(if\ \ d_i=0)$\\
+\frac{\partial\left\|d_i\right\|_1}{\partial d_i} = -1 & $(if\ \ d_i<0)$\nonumber
+\end{numcases}
+
+因此，当$d_i>0$时，$d_i=u_i-\frac{1}{\lambda}$，此时要求$u_i>\frac{1}{\lambda}$;当$d_i<0$时，$d_i=u_i+\frac{1}{\lambda}$，此时要求$u_i<-\frac{1}{\lambda}$;当$d_i=0$时，$d_i=u_i-\frac{1}{\lambda}\cdot\frac{\partial\left\|d_i\right\|_1}{\partial d_i}=0$，此时要求$u_i\in[-\frac{1}{\lambda},\frac{1}{\lambda}]$
+
+根据凸优化的性质，可以认为我们给出了正确的递推函数\footnote{此处我们记$u_i^{(k)}=\nabla_i f^{(k+1)}-b_i^{(k)}$}
+
+\begin{numcases}{}
+d_i^{(k+1)} = u_i^{(k)}-\frac{1}{\lambda} & $(if\ \ u_i^{(k)}>\frac{1}{\lambda})$ \nonumber \\
+d_i^{(k+1)} = 0 & $(if\ \ u_i^{(k)}\in[-\frac{1}{\lambda},\frac{1}{\lambda}])$  \\
+d_i^{(k+1)} = u_i^{(k)}+\frac{1}{\lambda} & $(if\ \ u_i^{(k)}<-\frac{1}{\lambda})$ \nonumber 
+\end{numcases}
+
+也即$d_i$的递推可以由收缩算子$shrink$给出：
+$$d_i^{(k+1)}=\text{shrink}\left(u_i^{(k)},\frac{1}{\lambda}\right)=\text{sign}(u_i^{k})\cdot \max\left(|u_i^{(k)}|-\frac{1}{\lambda},0\right)$$
+
+最后，我们给出分裂布雷格曼方法要求的统一的$b_{xx},b_{xy},b_{yy}$的迭代方法：
+\begin{numcases}{}
+b_{xx}^{(k+1)} = b_{xx}^{(k)} + f_{xx}^{k+1} - d_{xx}^{(k+1)} \nonumber\\
+b_{xy}^{(k+1)} = b_{xy}^{(k)} + f_{xy}^{k+1} - d_{xy}^{(k+1)} \\
+b_{yy}^{(k+1)} = b_{yy}^{(k)} + f_{yy}^{k+1} - d_{yy}^{(k+1)}\nonumber
+\end{numcases}
+
+通过迭代求解，根据分裂布雷格曼迭代方法的收敛性可知：算法最终收敛至目标解。
+
+\section{具体算法}
+
+我们通过北太天元平台实现了所提出的二阶正则化去噪算法。但由于代码逾300行，所以我们不在论文内进行展示。本论文后续用到的所有算法均已在github上开源，具体详见地址:
+\href{https://github.com/zhukaile5-crypto/Hessian-denoise-algorithm-and-data.git}{\url{https://github.com/zhukaile5-crypto/Hessian-denoise-algorithm-and-data.git}}(除了本文所讨论的主代码外，我们还上传了空间高斯滤波代码用作对比，并上传了对原始图像(包括黑白的和彩色的)的加噪代码)。
+
+\clearpage
+
+\section{测试结果与分析}
+
+\subsection{算法去噪性能的直观展示与定量分析}
+
+\subsubsection{不同噪声幅度和占比条件下的去噪效果}
+
+我们在不同噪声强度条件下测试算法性能，结果如图 1 所示：
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.75\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{不同噪声强度去噪结果.png}
+        
+        \caption{不同噪声强度下的去噪效果——第一、三两行为噪声图像，第二、四两行为去噪结果，第1、3两行编码从1-6的图像所加的噪声的方差为0,50,100,150,200,250,位于噪声图像正下方的图像为其对应的去噪图像}
+        
+        \label{fig:placeholder}
+    \end{minipage}
+\end{figure}
+
+测试结果表示：不论噪声的方差取为 [0 , 255] 区间内的哪个值，程序均有良好的降噪效果，为定量 评估去噪性能，我们计算了结构相似性指标 (SSIM)的提升度 和噪声的去除率(基于峰值信噪比 (PSNR) )，结果如图 2 所示：
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.75\linewidth}
+        \centering
+        
+        \includegraphics[width=\linewidth]{不同噪声强度去噪性能.png}
+
+        \vspace{-5pt}
+        \caption{不同噪声强度下代码的去噪性能(图中展示了两个主要参数——SSIM的提升幅度(它可以反映算法对图像的复原度)以及PSNR(它可以展示图像的去噪性能))}
+        \label{fig:placeholder}
+    \end{minipage}
+\end{figure}
+
+由上图我们可以很清晰地看到：我们的代码能够非常好的去除噪声并提高图像对真实图像的逼近程度。
+
+\clearpage
+
+进而，我们想知道算法在不同噪声密度下的表现，故测试了不同噪声密度 (5\%,10\%,15\%,20\%,25\%) 下的去噪结果，具体结果如下图所示：
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\linewidth}
+        \centering
+    \includegraphics[width=0.75\linewidth]{不同噪声占比去噪结果.png}
+
+     \vspace{-2pt}
+    \caption{不同噪声占比下的去噪效果——第一、三两行为噪声图像，第二、四两行为去噪结果，第1、3两行编码从1-6的图像所加的噪声的占比为0\%,5\%,10\%,15\%,20\%,25\%,位于噪声图像正下方的图像为其对应的去噪图像}
+    \label{fig:placeholder}
+
+
+    \end{minipage}
+\end{figure}
+\vspace{-0.3cm}
+测试结果显示：代码在噪声占比很高且噪声强度较大的条件下仍然能够显出良好的去噪能力，图像经去噪后，原本呈现雪花状密集分布的噪声退化为较弱的背景虚化像，同时真实点状图像得到保留
+\vspace{0.5cm}
+
+与前述完全相似的，我们绘制了对应的定量评估结果，如下图 4 所示：
+
+\begin{figure}[H]
+    \centering
+     \begin{minipage}{0.9\linewidth}
+        \centering
+    \includegraphics[width=0.75\linewidth]{不同噪声占比去噪性能.png}
+     \vspace{-4pt}
+    \caption{不同噪声占比下代码的去噪性能}
+    \label{fig:placeholder}
+    \end{minipage}
+\end{figure}
+
+我们从图4也可以看到——我们的算法即使在信噪比很低的时候仍然能一定程度上地提升SSIM，并且噪声去除率能够稳定在百分之八十左右，这充分体现了我们的算法去噪的稳定性和强效性。
+
+\clearpage
+
+\subsection{代码对噪声涨落的平滑效果}
+
+我们的代码能够在很大程度上降低噪声的幅度，前面的图像数据非常有力地反映了这一点，下面我们通过绘制图像的灰度-XY 曲面图，进一步展现我们的算法对噪声的滤除效果以及对灰度曲面的平滑作用。
+
+\subsubsection{全局灰度曲面对比}
+
+首先，我们先来看我们的代码对图像整体的噪声滤除作用与涨落平滑作用，相关结果如下图5所示：
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth]{
+        \includegraphics[width=1\linewidth]{yanshi2.png} 
+    }
+    \vspace{-15pt}
+    \caption{原始-噪声-去噪图像的全局灰度曲面对比图}
+    \label{fig:yanshi2}
+\end{figure}
+\vspace{-10pt}
+上图表明，程序实现了对原噪声的高度抑制以及对噪声涨落的高度平滑，并且使得图像的灰度分 布与原图像 (真实图像) 的接近程度大为提高。
+
+\subsubsection{局部灰度曲面对比}
+
+上面我们展示了我们的算法在全局的取去噪效果，下面我们进一步展示我们的算法在局部的去噪行为 (如图 6 所示)：
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth]{
+        \includegraphics[width=1\linewidth]{yanshi1.png} 
+    }
+    \vspace{-12.5pt}
+    \caption{原始-噪声-去噪图像的局部灰度曲面对比图}
+    \label{fig:yanshi2}
+\end{figure}
+
+我们由上图可以很清楚地看到——我们的算法在局部同样具有良好的去噪（平滑）表现。经过我们的算法处理后图像的抖动性大幅下降，与原图像的接近(拟真)程度大幅上升。
+
+\clearpage
+\subsection{与经典高斯算法的对比}
+
+\subsubsection{定性的图像对比}
+
+我们的算法是基于频域的去噪算法，而高斯模糊算法则是一种非常经典的空域的降噪算法，我们下面拟将两种算法进行对比：
+
+首先，我们在极高噪声下考察两种算法的表现，具体结果如下图 7 所示：
+\begin{figure}[H]
+    \centering % 作用于整个图和图注块
+    
+    % 1. 放置放大的图片
+    \includegraphics[width=0.7\linewidth]{结果展示.png}      
+    \vspace{1cm} % 增加图片和图注之间的间距（可选）
+    
+    % 2. 放置图注块
+    \begin{minipage}{0.85\linewidth} 
+        \centering % 居中 minipage 内部的标题文本
+        \vspace{-15pt} % 保留您想要的间距调整
+        
+        % 放置图注
+        \caption{我们在极高噪声的条件下用两种算法对图像进行去噪，图中共8张图片每行为一组照片，每组的四张照片依次为：原始图像、噪声图像、我们的代码的去噪结果、高斯模糊的去噪结果}
+        \label{fig:yanshi2}
+    \end{minipage}
+\end{figure}
+\vspace{-10pt}
+
+图像结果显示：我们的频域算法重建出的图像更为平滑，且畸变性更弱。具体而言，我们算法的结果较为连续。而高斯模糊算法的结果则较为散乱，仍然呈现出点状散斑噪声的特性。此外，高斯算法重建出的图像有较为严重的畸变，原本的圆点在重建后无法保持原有形状，而我们的算法则能实现基本保形，即圆点在重建后至多变为椭球状。
+
+上面我们定性地展示了我们的优化算法相较于经典的高斯模糊算法的优势所在，下面我们从图像相似度 (SSIM) 提升与噪声去除率两个角度来定量衡量我们的算法相较于经典高斯算法的优势：
+
+\subsubsection{SSIM提升角度}
+
+两种算法对图像的相似度提升的对比结果如下图8所示：
+
+\begin{figure}[H]
+    \centering % 作用于整个图和图注块
+    
+    % 1. 放置图片
+    \includegraphics[width=0.6\linewidth]{两种算法的相似度提升对比.png} 
+    % 2. 放置图注块 (使用 minipage 限制宽度，并依靠 \centering 居中)
+    \begin{minipage}{0.75\linewidth} 
+        \centering % 居中 minipage 内部的标题文本
+        % 放置图注
+        \vspace{0.35cm}
+        \caption{两种算法的相似度提升对比(其中红线代表我们的高斯算法，蓝线代表经典的高斯模糊算法)}
+        \label{fig:yanshi2}
+    \end{minipage}
+\end{figure}
+\vspace{-0.5cm}
+我们由上图的定量结果可以看到，我们的算法在相似度提升上相较于高斯算法有着 30\%-40\% 的恒定优势。
+\clearpage
+\subsubsection{噪声去除率角度}
+
+两种算法对图像的噪声去除率的对比结果如下图8所示：
+
+
+\begin{figure}[H]
+    \centering
+    % 1. 图片部分：使用 \makebox 允许图片放大（例如 1.15\linewidth）并居中
+    \makebox[\linewidth]{
+        \includegraphics[width=0.6\linewidth]{两种算法的噪声去除率对比.png} 
+    }
+    
+    % 2. 图注部分：使用 \makebox 居中图注的窄框
+    \makebox[\linewidth]{
+        % 使用一个窄的 minipage 来限制图注的宽度（例如 0.8\linewidth）
+        \begin{minipage}{0.75\linewidth} 
+            \centering % 居中 minipage 内部的标题文本
+            \vspace{0.35cm}
+            % 放置图注
+            \caption{两种算法的噪声去除率对比(其中红线代表我们的高斯算法，蓝线代表经典的高斯模糊算法)}
+            \label{fig:yanshi2}
+        \end{minipage}
+    }
+\end{figure}
+\vspace{-0.65cm}
+
+噪声去除率对比图显示：绝大多数情况下，我们的算法相较于高斯模糊算法有着较为明显的优势。
+
+此外，就算法灵活性而言，我们的代码的核心参数仅有 $\mu$，需要保留原图像特征时调高 $\mu$、需要尽可能去噪时调小 $\mu$ 即可。而若要调整高斯模糊算法，则要改变卷积核的大小，这直接影响了分布标准差，需要进一步的调整。因此，相较于传统算法，我们的算法体现了高度的灵活性。
+
+\subsection{算法的分辨率损伤分析}
+
+我们明确，许多去噪算法存在着一个关键问题：在去除噪声的过程中会降低分辨率。这是非常大的一个问题——我们去除噪声的初衷就是想要获取精细的结构，如果去噪后图像的分辨率降低导致精细结构损失，那么该算法无疑是存在缺陷的。因此，我们在此处对我们的算法进行分辨率损伤相关的分析：
+
+我们的具体操作流程如下：首先生成标准正弦图像及其加噪图像，再对加噪图像进行重构，通过分析正弦函数图像的分辨性，判断我们的代码是否存在分辨率损伤的问题，具体测试结果如下图9所示：
+
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth]{
+        \includegraphics[width=0.35\linewidth]{总结果.png} 
+    }
+    \begin{minipage}{0.75\linewidth} 
+        \centering % 居中 minipage 内部的标题文本
+        \vspace{0.35cm}
+        % 放置图注
+        \caption{分辨率损伤分析图(我们对角度分别为0°、$\pm$60°的正弦函数加噪图像进行重建，根据重建条纹的分辨性判断分辨率的损伤程度)}
+        \label{fig:yanshi2}
+    \end{minipage}
+    \label{fig:yanshi2}
+\end{figure}
+
+\vspace{-0.5cm}
+
+需要申明的是：此结果是原图像的放大版本，我们实际设置的空间频率接近实际图像中可能达到最高频率。我们在此前提下运用我们的算法进行去噪，得到的最终结果显示：我们的算法并不会对此等空间频率的图像的分辨率造成大幅损伤。因此我们可以认为：我们的算法对图像的分辨率损伤完全处在可以容忍的范围之内。
+
+\subsection{算法的具体应用与彩色延拓}
+
+\subsubsection{算法的具体应用}
+
+在生物学领域，我们常常需要对处在恒定的运动状态中的活细胞进行成像。因此，为了避免出现运动伪影，我们需要进行超快速成像(通常1000Hz左右)。这就使得单帧图像的实际光子数很少，导致信噪比极低。此时就需要运用算法对我们得到的原图像进行去噪，我们下展示一个具体实例，以展示我们的算法在生物学领域的强大效用：
+
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth]{
+        \includegraphics[width=0.9\linewidth]{生物学去噪图.png} 
+    }
+    \vspace{-16pt}
+    \caption{生物学去噪图}
+    \label{fig:yanshi2}
+\end{figure}
+\vspace{-0.35cm}
+我们清晰地看到，通过运用我们的算法，我们成功地实现了对噪点的近完全消除，从而重建出了近理想的生物学图像，这在生物学领域意义非凡。
+
+\subsubsection{算法的彩色延拓}
+
+我们指出，虽然去噪算法主要针对灰度图像的，但也可以通过处理 RGB 值而轻松地应用于彩色图像，相关地代码同样开源于 github 同一地址，下面展示了相关的去噪结果(声明：本部分第二张图来自于\cite{Fieldhouse2025CART})：
+
+% =============== 核心修改：使用非浮动的 \center 环境 ===============
+\begin{center}
+    % --- 第一张图 (上) ---
+    \begin{minipage}{\linewidth}
+        \centering
+        \makebox[\linewidth]{
+            \includegraphics[width=0.85\linewidth]{结果1.png} 
+        }
+        % 移除 figure 环境下的独立 \label
+    \end{minipage}
+    
+    % 大幅减小两张图之间的垂直间距
+    \vspace{-1cm} 
+    
+    % --- 第二张图 (下) ---
+    \begin{minipage}{\linewidth}
+        \centering
+        \makebox[\linewidth]{
+            \includegraphics[width=0.85\linewidth]{结果2.png} 
+        }
+        % 移除 figure 环境下的独立 \label
+    \end{minipage}
+    
+    % --- 统一的图名 ---
+    \vspace{-6pt} 
+    % 使用 \captionof{figure} 在非浮动环境中创建图注，同样会应用全局的黑体+小字号设置
+    \captionof{figure}{彩色去噪结果}
+    \label{fig:color_denoise_results}
+    
+\end{center}
+% ===============================================================
+
+\vspace{0cm} % 调整图表与后续文字的间距
+
+上述图像表明，我们的去噪程序可以有效地延拓至彩色图像处理领域。
+
+
+\section{总结与展望}
+由我们前面的相关讨论，我们可以得出论断：我们的算法相较于经典的空域高斯模糊算法有着非常明显的优势——我们在图像的相似度(SSIM)提升方面以及噪声的去除率(基于PSNR)方面相较于高斯模糊算法有着近乎恒定的优势。且我们的算法在可调性方面较高斯模糊算法更是有着极大的优势——也即我们的代码拥有高度的灵活性。这些优势肯定了它作为一种优秀的去噪算法。我们指出：它可以被运到生物医学成像等多个领域——自2019年来，该算法已经在超分辨结构光显微成像领域得到了广泛的应用，极大地提高了系统容许的噪声量与噪声幅度，使得我们能够以更短的时间、更低的光强进行单帧成像，进而实现了对生物样本的超快、低漂白、长时程的超分辨显微成像，为生物医学领域的研究做出了卓越的贡献！\cite{Huang2018HessianSIM}\cite{Chen2023SIMReview}我们也希望此算法能够面向更广泛的大众得到普及，使得该算法能够被运用到更多尚未涉足的领域！
+
+\vspace{1cm}
+
+% 参考文献
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\vspace{1cm}
+
+\section{鸣谢}
+
+\textbf{我们在此向为本文提供测试数据的Xilab表示诚挚的感谢，并在此向所有为本文的写作提供指导与帮助的老师和同学致以衷心的谢意！}\end{document}
